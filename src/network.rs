@@ -4,11 +4,10 @@ use native_tls::TlsConnector;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 
-/*  */
-pub fn parse_url(url: &str) {
-    // Print provided name
-    println!("For provided url: {}", url);
-
+/* Parses a provided url argument for the host, port, path, and fragment.
+ * Prints the
+ */
+pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, String) {
     // Check that URL starts w/ http
     assert!(url.starts_with("http://"));
 
@@ -25,7 +24,7 @@ pub fn parse_url(url: &str) {
     if stripped_url.contains("/") {
         let hostport_pathfrag: Vec<&str> = stripped_url.splitn(2, '/').collect();
         let hostport: &str = hostport_pathfrag[0];
-        let mut pathfrag = "";
+         let mut pathfrag = "";
         match hostport_pathfrag.get(1) {
             Some(_) => { pathfrag = hostport_pathfrag[1]; },
             None => {}
@@ -55,21 +54,23 @@ pub fn parse_url(url: &str) {
     }
 
     // Print out the pieces
-    println!("host: {}", host);
-    println!("port: {}", port);
-    println!("path: {}", path);
-    println!("frag: {}", frag);
+    if print_pieces {
+        println!("host: {}", host);
+        println!("port: {}", port);
+        println!("path: {}", path);
+        println!("frag: {}", frag);
+    }
 
-    //return (host, port, path, frag);
+    return (host, port, path, frag);
 }
 
-/* Requests information from a server with the provided arguments */
-pub fn request(host: &str, port: &str, path: &str) {
-
-    // Null checks
+/* Requests information from a server with the provided arguments.
+ * Returns the header as a dictionary and body as a string.
+ */
+pub fn request(host: &str, port: &str, path: &str) -> () {
+    // Empty checks
     if host == "" {
-        println!("Error: no host provided to request function");
-        return;
+        panic!("Error: no host provided to request function");
     }
     let mut port: &str = port;
     if port == "" {
@@ -88,18 +89,20 @@ pub fn request(host: &str, port: &str, path: &str) {
     stream.write_all(header.as_bytes()).unwrap();
     let mut res = vec![];
     stream.read_to_end(&mut res).unwrap();
-    println!("{}", String::from_utf8_lossy(&res));
+    // TODO: split the return stream into header and body
+
+//    println!("{}", String::from_utf8_lossy(&res));
 }
 
-/* Displays the provided body */
-fn show(body: &str) {
-    if body == ""{
-        println!("String provided to show function is null");
+/* Prints the body from the provided html to the console. */
+fn show(html: &str) -> () {
+    if html == ""{
+        panic!("String provided to show function is null");
     }
 
     let mut in_tag :bool = false;
     let mut tag_name:String = "".to_string();
-    for c in body.chars() {
+    for c in html.chars() {
         if c == '<'{
             in_tag = true;
             tag_name = "".to_string();
@@ -116,14 +119,7 @@ fn show(body: &str) {
 }
 
 /* TESTS */
-//#[test]
-//pub fn test_id() {
-//    assert_eq!(
-//        ElementData {
-//            tag_name: "".to_string(),
-//            layout_type: LayoutType::Text,
-//            attrs: HashMap::new(),
-//        }.id(),
-//        None
-//    )
-//}
+#[test]
+pub fn test_url() {
+    assert_eq!()
+}
