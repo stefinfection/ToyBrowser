@@ -3,6 +3,7 @@ extern crate native_tls;
 use native_tls::TlsConnector;
 use std::io::{Read, Write};
 use std::net::TcpStream;
+use std::collections::HashMap;
 
 /* Parses a provided url argument for the host, port, path, and fragment.
  * Prints the extracted pieces of the url, in the above order, if print_pieces is true.
@@ -12,19 +13,21 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
     assert!(url.starts_with("http://"));
 
     // Strip of http
-    let stripped_url = &url[7..];
-    println!("stripped url: {}", stripped_url);
+    let stripped_url:&str = &url[7..];
+    if print_pieces {
+        println!("stripped url: {}", stripped_url);
+    }
 
     // Split the individual pieces of url out
     let mut host: String = "".to_string();
-    let mut port: String = "".to_string();
-    let mut path: String = "".to_string();
-    let mut frag: String = "".to_string();
+    let mut port: String = ":".to_string();
+    let mut path: String = "/".to_string();
+    let mut frag: String = "#".to_string();
 
     if stripped_url.contains("/") {
         let hostport_pathfrag: Vec<&str> = stripped_url.splitn(2, '/').collect();
         let hostport: &str = hostport_pathfrag[0];
-        let mut pathfrag = "";
+        let mut pathfrag: &str = "";
         match hostport_pathfrag.get(1) {
             Some(_) => { pathfrag = hostport_pathfrag[1]; }
             None => {}
@@ -37,6 +40,7 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
             port.push_str(&host_port[1]);
         } else {
             host = hostport.to_string();
+            port = "".to_string();
         }
 
         // Parse path and fragment
@@ -45,10 +49,18 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
             path.push_str(&path_frag[0]);
             frag.push_str(&path_frag[1]);
         } else {
-            path = pathfrag.to_string();
+            if pathfrag == "" {
+                path = "".to_string();
+            } else {
+                path.push_str(&pathfrag);
+            }
+            frag = "".to_string();
         }
     } else {
         host = stripped_url.to_string();
+        port = "".to_string();
+        path = "".to_string();
+        frag = "".to_string();
     }
 
     // Print out the pieces
@@ -67,38 +79,62 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
  *
  * https://github.com/sfackler/rust-native-tls
  */
-pub fn request(host: &str, port: &str, path: &str) -> () {
-    // Empty checks
+pub fn request(host: &str, port: &str, path: &str) -> (String, String, String, HashMap<String, String>, String) {
+    // Empty check
     if host == "" {
         panic!("Error: no host provided to request function");
     }
-    let mut port: &str = port;
-    if port == "" {
-        port = ":8080";
-    }
+    let host_port = format!("{}{}", host, port);
 
     // Open a socket
-    let connector = TlsConnector::new().unwrap();
+    let connector: TlsConnector = TlsConnector::new().unwrap();
     let mut tcp_input: String = host.to_string();
-    tcp_input.push_str(port);
-    let stream = TcpStream::connect(tcp_input).unwrap();
-    let mut stream = connector.connect(host, stream).unwrap();
+    tcp_input.push_str(":443");     // Standard TCP port
+    let stream: TcpStream = TcpStream::connect(tcp_input).unwrap();
+    let mut stream = connector.connect(&host_port, stream).unwrap();
 
     // Write to the stream
-    let header: String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, host);
-    stream.write_all(header.as_bytes()).unwrap();
+    let header: String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, &host_port);
+    stream.write_all(&header.as_bytes()).unwrap();
+
+    // Read from stream
     let mut res = vec![];
     stream.read_to_end(&mut res).unwrap();
-    // TODO: split the return stream into header and body
 
-//    println!("{}", String::from_utf8_lossy(&res));
+    // Parse header
+    let response: String = String::from_utf8_lossy(&res).to_string();
+    let header_body: Vec<&str> = (&response).splitn(2, "\r\n\r\n").collect();
+    let header: String = header_body[0].to_string();
+    let header_lines:Vec<&str> = header.split("\r\n").collect();
+
+    // Pull out first line
+    let first_line:Vec<&str> = header_lines[0].splitn(3, " ").collect();
+    let version: String = first_line[0].to_string();
+    let status: String = first_line[1].to_string();
+    let explanation: String = first_line[2].to_string();
+
+    // Populate header dictionary
+    let mut header_map:HashMap<String,String>= HashMap::new();
+    for line in &header_lines[1..] {
+        let key_val:Vec<&str> = line.splitn(2, " ").collect();
+        header_map.insert(key_val[0].to_string(), key_val[1].to_string());
+    }
+
+    // Extract body
+    let body: String = header_body[1].to_string();
+
+    return (version, status, explanation, header_map, body);
 }
 
-/* Prints the body from the provided html to the console. */
-pub fn show(html: &str) -> () {
+/* Returns the inside of the <body> tag provided as the html argument.
+ * Returns an empty string upon the argument not containing a body tag.
+ */
+pub fn show(html: &str) -> (String) {
     if html == "" {
         panic!("String provided to show function is null");
     }
+
+    let mut body_text: String = "".to_string();
 
     let mut in_tag: bool = false;
     let mut tag_name: String = "".to_string();
@@ -110,43 +146,95 @@ pub fn show(html: &str) -> () {
             in_tag = false;
         } else {
             if !in_tag && "body".to_string() == tag_name {
-                print!("{}", c);
+                body_text.push(c);
             } else if in_tag {
                 tag_name.push(c);
             }
         }
     }
+    return body_text;
 }
 
 
 /* TESTS */
 #[cfg(test)]
 mod network_tests {
+    use super::*;
+
     #[test]
     fn test_parse_host_only() {
-        let actual = super::parse_url("http://example.org", false);
+        let actual = parse_url("http://example.org", false);
         let expected = ("example.org".to_string(),"".to_string(),"".to_string(),"".to_string());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_parse_port() {
-        let actual = super::parse_url("http://localhost:8080/", false);
-        let expected = ("localhost".to_string(),"8080".to_string(),"".to_string(),"".to_string());
+        let actual = parse_url("http://localhost:8080/", false);
+        let expected = ("localhost".to_string(),":8080".to_string(),"".to_string(),"".to_string());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_parse_path() {
-        let actual = super::parse_url("http://example.org/index.html", false);
-        let expected = ("example.org".to_string(),"".to_string(),"index.html".to_string(),"".to_string());
+        let actual = parse_url("http://example.org/index.html", false);
+        let expected = ("example.org".to_string(),"".to_string(),"/index.html".to_string(),"".to_string());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_parse_frag() {
-        let actual = super::parse_url("http://example.org/index.html#head", false);
-        let expected = ("example.org".to_string(),"".to_string(),"index.html".to_string(),"head".to_string());
+        let actual = parse_url("http://example.org/index.html#head", false);
+        let expected = ("example.org".to_string(),"".to_string(),"/index.html".to_string(),"#head".to_string());
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_request_empty() {
+        request("", "", "");
+    }
+
+    #[test]
+    fn test_request_example() {
+        let actual = request("example.org", "", "/index.html");
+        let actual_version = actual.0;
+        let actual_status = actual.1;
+        let actual_explanation = actual.2;
+        let actual_body = actual.4;
+
+        assert_eq!(actual_version, "HTTP/1.0".to_string());
+        assert_eq!(actual_status, "200".to_string());
+        assert_eq!(actual_explanation, "OK".to_string());
+        assert_ne!(actual_body, "".to_string());
+    }
+
+    //#[test] TODO: this isn't working
+    fn test_request_google() {
+        let actual = request("google.com", "", "");
+        let actual_version = actual.0;
+        let actual_status = actual.1;
+        let actual_explanation = actual.2;
+        let actual_body = actual.4;
+
+        assert_eq!(actual_version, "HTTP/1.0".to_string());
+        assert_eq!(actual_status, "200".to_string());
+        assert_eq!(actual_explanation, "OK".to_string());
+        assert_ne!(actual_body, "".to_string());
+    }
+
+    #[test]
+    fn test_show() {
+        let test_body = "<body>Test text.</body>";
+        let actual = show(test_body);
+        let expected = "Test text.";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_show_empty() {
+        let test_body = "";
+        show(test_body);
     }
 }

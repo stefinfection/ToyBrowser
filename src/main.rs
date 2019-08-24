@@ -1,14 +1,10 @@
 mod network;
 
 fn main() {
-    let mut test_url: &str = "http://example.org";
-    network::parse_url(test_url, true);
+    let test_url: &str = "http://example.org/index.html";
+    let url_pieces = network::parse_url(test_url, false);
+    network::request(&url_pieces.0, &url_pieces.1, &url_pieces.2);
 
-    test_url = "http://localhost:8080/";
-    network::parse_url(test_url, true);
-
-    test_url = "http://example.org/index.html#head";
-    network::parse_url(test_url, true);
 }
 
 
