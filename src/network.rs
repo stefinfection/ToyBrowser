@@ -5,7 +5,7 @@ use std::io::{Read, Write};
 use std::net::TcpStream;
 
 /* Parses a provided url argument for the host, port, path, and fragment.
- * Prints the
+ * Prints the extracted pieces of the url, in the above order, if print_pieces is true.
  */
 pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, String) {
     // Check that URL starts w/ http
@@ -17,27 +17,26 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
 
     // Split the individual pieces of url out
     let mut host: String = "".to_string();
-    let mut port: String = ":".to_string();
-    let mut path: String = "/".to_string();
-    let mut frag: String = "#".to_string();
+    let mut port: String = "".to_string();
+    let mut path: String = "".to_string();
+    let mut frag: String = "".to_string();
 
     if stripped_url.contains("/") {
         let hostport_pathfrag: Vec<&str> = stripped_url.splitn(2, '/').collect();
         let hostport: &str = hostport_pathfrag[0];
-         let mut pathfrag = "";
+        let mut pathfrag = "";
         match hostport_pathfrag.get(1) {
-            Some(_) => { pathfrag = hostport_pathfrag[1]; },
+            Some(_) => { pathfrag = hostport_pathfrag[1]; }
             None => {}
         }
 
         // Parse host and port
         if hostport.contains(":") {
-            let host_port: Vec<&str> = hostport.splitn(2,':').collect();
+            let host_port: Vec<&str> = hostport.splitn(2, ':').collect();
             host = host_port[0].to_string();
             port.push_str(&host_port[1]);
         } else {
             host = hostport.to_string();
-            port = "".to_string();
         }
 
         // Parse path and fragment
@@ -47,7 +46,6 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
             frag.push_str(&path_frag[1]);
         } else {
             path = pathfrag.to_string();
-            frag = "".to_string();
         }
     } else {
         host = stripped_url.to_string();
@@ -66,6 +64,8 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
 
 /* Requests information from a server with the provided arguments.
  * Returns the header as a dictionary and body as a string.
+ *
+ * https://github.com/sfackler/rust-native-tls
  */
 pub fn request(host: &str, port: &str, path: &str) -> () {
     // Empty checks
@@ -85,7 +85,7 @@ pub fn request(host: &str, port: &str, path: &str) -> () {
     let mut stream = connector.connect(host, stream).unwrap();
 
     // Write to the stream
-    let header:String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, host);
+    let header: String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, host);
     stream.write_all(header.as_bytes()).unwrap();
     let mut res = vec![];
     stream.read_to_end(&mut res).unwrap();
@@ -95,18 +95,18 @@ pub fn request(host: &str, port: &str, path: &str) -> () {
 }
 
 /* Prints the body from the provided html to the console. */
-fn show(html: &str) -> () {
-    if html == ""{
+pub fn show(html: &str) -> () {
+    if html == "" {
         panic!("String provided to show function is null");
     }
 
-    let mut in_tag :bool = false;
-    let mut tag_name:String = "".to_string();
+    let mut in_tag: bool = false;
+    let mut tag_name: String = "".to_string();
     for c in html.chars() {
-        if c == '<'{
+        if c == '<' {
             in_tag = true;
             tag_name = "".to_string();
-        } else if c == '>'{
+        } else if c == '>' {
             in_tag = false;
         } else {
             if !in_tag && "body".to_string() == tag_name {
@@ -118,8 +118,35 @@ fn show(html: &str) -> () {
     }
 }
 
+
 /* TESTS */
-#[test]
-pub fn test_url() {
-    assert_eq!()
+#[cfg(test)]
+mod network_tests {
+    #[test]
+    fn test_parse_host_only() {
+        let actual = super::parse_url("http://example.org", false);
+        let expected = ("example.org".to_string(),"".to_string(),"".to_string(),"".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_port() {
+        let actual = super::parse_url("http://localhost:8080/", false);
+        let expected = ("localhost".to_string(),"8080".to_string(),"".to_string(),"".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_path() {
+        let actual = super::parse_url("http://example.org/index.html", false);
+        let expected = ("example.org".to_string(),"".to_string(),"index.html".to_string(),"".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_frag() {
+        let actual = super::parse_url("http://example.org/index.html#head", false);
+        let expected = ("example.org".to_string(),"".to_string(),"index.html".to_string(),"head".to_string());
+        assert_eq!(actual, expected);
+    }
 }
