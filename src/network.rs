@@ -1,3 +1,8 @@
+/* Controls connecting to an endpoint and parsing urls.
+ *
+ * Ref: https://github.com/sfackler/rust-native-tls
+ */
+
 extern crate native_tls;
 
 use native_tls::TlsConnector;
@@ -76,8 +81,6 @@ pub fn parse_url(url: &str, print_pieces: bool) -> (String, String, String, Stri
 
 /* Requests information from a server with the provided arguments.
  * Returns the header as a dictionary and body as a string.
- *
- * https://github.com/sfackler/rust-native-tls
  */
 pub fn request(host: &str, port: &str, path: &str) -> (String, String, String, HashMap<String, String>, String) {
     // Empty check
