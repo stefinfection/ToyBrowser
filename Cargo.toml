@@ -8,7 +8,4 @@ edition = "2018"
 
 [dependencies]
 native-tls = "0.2"
-
-[dependencies.gtk]
-version = ""
-features = ["v3_30"]
+gtk = "0.7.0"
