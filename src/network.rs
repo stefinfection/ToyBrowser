@@ -2,10 +2,6 @@
  *
  * Ref: https://github.com/sfackler/rust-native-tls
  */
-
-extern crate native_tls;
-
-use native_tls::TlsConnector;
 use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::collections::HashMap;
@@ -90,19 +86,23 @@ pub fn request(host: &str, port: &str, path: &str) -> (String, String, String, H
     let host_port = format!("{}{}", host, port);
 
     // Open a socket
-    let connector: TlsConnector = TlsConnector::new().unwrap();
     let mut tcp_input: String = host.to_string();
-    tcp_input.push_str(":443");     // Standard TCP port
-    let stream: TcpStream = TcpStream::connect(tcp_input).unwrap();
-    let mut stream = connector.connect(&host_port, stream).unwrap();
+    tcp_input.push_str(":80");    // Have to provide a port
 
+    let mut stream: TcpStream = (TcpStream::connect(&tcp_input)).unwrap();
+    //stream.flush().unwrap();
+
+    println!("Made it passed connecting");
     // Write to the stream
-    let header: String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, &host_port);
+    //let header: String = format!("GET {} HTTP/1.0\r\nHost: {}\r\n\r\n", path, &host_port);
+    let header: String = format!("GET {} HTTP/1.1\r\nHost: {}\r\n\r\n", path, &host_port);
     stream.write_all(&header.as_bytes()).unwrap();
 
+    println!("About to read from stream");
     // Read from stream
     let mut res = vec![];
     stream.read_to_end(&mut res).unwrap();
+    println!("Read from stream successfully");
 
     // Parse header
     let response: String = String::from_utf8_lossy(&res).to_string();
@@ -138,20 +138,28 @@ pub fn show(html: &str) -> (String) {
     }
 
     let mut body_text: String = "".to_string();
-
+    let mut in_body: bool = false;
+    let mut in_out_tag: bool = false;
     let mut in_tag: bool = false;
     let mut tag_name: String = "".to_string();
     for c in html.chars() {
-        if c == '<' {
-            in_tag = true;
+        if in_body == true {
+            if c == '<' {
+                in_tag = true;
+            } else if c == '>' {
+                in_tag = false;
+            } else if !in_tag {
+                body_text.push(c);
+            }
+        } else if c == '<' {
+            in_out_tag = true;
             tag_name = "".to_string();
         } else if c == '>' {
-            in_tag = false;
-        } else {
-            if !in_tag && "body".to_string() == tag_name {
-                body_text.push(c);
-            } else if in_tag {
-                tag_name.push(c);
+            in_out_tag = false;
+        } else if in_out_tag {
+            tag_name.push(c);
+            if tag_name == "body".to_string() {
+                in_body = !in_body;
             }
         }
     }
@@ -168,6 +176,13 @@ mod network_tests {
     fn test_parse_host_only() {
         let actual = parse_url("http://example.org", false);
         let expected = ("example.org".to_string(),"".to_string(),"".to_string(),"".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_assgn_page() {
+        let actual = parse_url("http://www.zggdwx.com/xiyou/1.html", false);
+        let expected = ("www.zggdwx.com".to_string(),"".to_string(),"/xiyou/1.html".to_string(),"".to_string());
         assert_eq!(actual, expected);
     }
 
@@ -201,20 +216,6 @@ mod network_tests {
     #[test]
     fn test_request_example() {
         let actual = request("example.org", "", "/index.html");
-        let actual_version = actual.0;
-        let actual_status = actual.1;
-        let actual_explanation = actual.2;
-        let actual_body = actual.4;
-
-        assert_eq!(actual_version, "HTTP/1.0".to_string());
-        assert_eq!(actual_status, "200".to_string());
-        assert_eq!(actual_explanation, "OK".to_string());
-        assert_ne!(actual_body, "".to_string());
-    }
-
-    //#[test] TODO: this isn't working
-    fn test_request_google() {
-        let actual = request("google.com", "", "");
         let actual_version = actual.0;
         let actual_status = actual.1;
         let actual_explanation = actual.2;
